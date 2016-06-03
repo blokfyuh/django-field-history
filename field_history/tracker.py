@@ -81,25 +81,29 @@ class FieldHistoryTracker(object):
         self.patch_save(instance)
 
     def _inititalize_tracker(self, instance):
-        tracker = self.tracker_class(instance, self.fields)
-        setattr(instance, self.attname, tracker)
-        tracker.set_saved_fields()
+        pass
+        # tracker = self.tracker_class(instance, self.fields)
+        # setattr(instance, self.attname, tracker)
+        # tracker.set_saved_fields()
 
     def patch_save(self, instance):
         original_save = instance.save
 
         def save(**kwargs):
             is_new_object = instance.pk is None
+            if not is_new_object:
+                saved_instance = self.model_class.objects.get(pk=instance.pk)
             ret = original_save(**kwargs)
-            tracker = getattr(instance, self.attname)
+            # tracker = getattr(instance, self.attname)
             field_histories = []
 
             # Create a FieldHistory for all self.fields that have changed
             for field in self.fields:
-                if tracker.has_changed(field) or is_new_object:
+                if is_new_object or getattr(saved_instance, field) != getattr(instance, field):
                     data = serializers.serialize(get_serializer_name(),
-                                                 [instance],
-                                                 fields=[field])
+                        [instance],
+                        fields=[field]
+                    )
                     user = self.get_field_history_user(instance)
                     history = FieldHistory(
                         object=instance,
@@ -114,7 +118,7 @@ class FieldHistoryTracker(object):
                 FieldHistory.objects.bulk_create(field_histories)
 
             # Update tracker in case this model is saved again
-            self._inititalize_tracker(instance)
+            # self._inititalize_tracker(instance)
 
             return ret
         instance.save = save
